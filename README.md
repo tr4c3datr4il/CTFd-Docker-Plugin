@@ -99,8 +99,6 @@ For remote Docker, the CTFd host must have SSH access to the remote server.
        ...
        volumes:
          - ./ssh_config:/root/.ssh:ro
-       environment:
-         - DOCKER_BASE_URL=ssh://user@remote-server
        ...
    ```
 
