@@ -42,6 +42,13 @@
 						placeholder="e.g. 30" value='{{ settings.container_expiration|default("") }}' />
 				</div>
 				<div class="form-group">
+					<label for="max_containers">
+						Max Containers Per User/Team
+					</label>
+					<input class="form-control" type="number" name="max_containers" id="max_containers"
+						placeholder="e.g. 3" value='{{ settings.max_containers|default("3") }}' />
+				</div>
+				<div class="form-group">
 					<label for="container_maxmemory">
 						Maximum per-container memory usage (in MB)
 					</label>
