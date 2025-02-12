@@ -53,7 +53,7 @@ To use this plugin, you should have:
 
 ## Usage
 
-### 1️⃣ Using Local Docker Daemon
+### Using Local Docker Daemon
 
 #### Case A: **CTFd Running Directly on Host:**
   - Go to the plugin settings page: `/containers/settings`
@@ -75,7 +75,7 @@ To use this plugin, you should have:
   - Go to the plugin settings page: `/containers/settings`
   - Fill in all fields except the `Base URL`.
 
-### 2️⃣ Using Remote Docker via SSH
+### Using Remote Docker via SSH
 
 For remote Docker, the CTFd host must have SSH access to the remote server.
 
