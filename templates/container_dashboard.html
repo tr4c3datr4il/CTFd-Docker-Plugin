@@ -1,24 +1,18 @@
-{% extends "admin/base.html" %}
+{% extends "container_base.html" %}
 
+{% block menu %}
+    <li class="nav-item">
+        <a class="nav-link active" href="#">Instances</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/containers/settings">&#128279; Settings</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/containers/cheat">&#128279; Share flag</a>
+    </li>
+{% endblock %}
 
-{% block content %}
-
-<style>
-	.containers-kill-btn {
-		padding: 5px;
-		line-height: 0
-	}
-
-	.containers-container {
-		max-width: none;
-	}
-</style>
-
-<div class="jumbotron">
-	<div class="container">
-		<h1>Containers</h1>
-	</div>
-</div>
+{% block panel %}
 <div class="container containers-container">
 	{% with messages = get_flashed_messages() %}
 	{% if messages %}
@@ -29,17 +23,8 @@
 	{% endfor %}
 	{% endif %}
 	{% endwith %}
-	<button class="btn btn-success" onclick="window.location.reload()"><i class="fas fa-sync"></i></button>
 	<button class="btn btn-danger" id="container-purge-btn" onclick="purgeContainers()" style="float:right">Purge All
 		Containers</button>
-	<a class="btn btn-primary" href="{{ url_for('.route_containers_settings') }}"
-		style="float:right;margin-right:10px">Settings</a>
-
-	{% if connected %}
-	<span class="badge badge-success">Docker Connected</span>
-	{% else %}
-	<span class="badge badge-danger">Docker Not Connected</span>
-	{% endif %}
 
 	<div class="mt-3">
 		<label for="team-filter"><strong>Filter </strong></label>
@@ -117,7 +102,10 @@
 	</table>
 </div>
 
+{% include "config/container_status.html" %}
+
 {% endblock %}
+
 
 {% block scripts %}
 <script>
