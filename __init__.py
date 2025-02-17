@@ -668,34 +668,49 @@ def load(app: Flask):
         return json.dumps(response_data)
 
     @containers_bp.route('/dashboard', methods=['GET'])
-    @containers_bp.route('/settings', methods=['GET'])
-    @containers_bp.route('/cheat', methods=['GET'])
     @admins_only
-    def route_containers_pages():
+    def route_containers_dashboard():
         connected = False
         try:
             connected = container_manager.is_connected()
         except ContainerException:
             pass
 
-        if request.path.endswith('/dashboard'):
-            running_containers = ContainerInfoModel.query.order_by(
-                ContainerInfoModel.timestamp.desc()).all()
+        running_containers = ContainerInfoModel.query.order_by(
+            ContainerInfoModel.timestamp.desc()).all()
 
-            for i, container in enumerate(running_containers):
-                try:
-                    running_containers[i].is_running = container_manager.is_container_running(
-                        container.container_id)
-                except ContainerException:
-                    running_containers[i].is_running = False
+        for i, container in enumerate(running_containers):
+            try:
+                running_containers[i].is_running = container_manager.is_container_running(
+                    container.container_id)
+            except ContainerException:
+                running_containers[i].is_running = False
 
-            return render_template('container_dashboard.html', containers=running_containers, connected=connected)
+        return render_template('container_dashboard.html', containers=running_containers, connected=connected)
 
-        if request.path.endswith('/settings'):
-            return render_template('container_settings.html', settings=container_manager.settings, connected=connected)
 
-        if request.path.endswith('/cheat'):
-            return render_template('container_cheat.html', settings=container_manager.settings, connected=connected)
+    @containers_bp.route('/settings', methods=['GET'])
+    @admins_only
+    def route_containers_settings():
+        connected = False
+        try:
+            connected = container_manager.is_connected()
+        except ContainerException:
+            pass
+
+        return render_template('container_settings.html', settings=container_manager.settings, connected=connected)
+
+
+    @containers_bp.route('/cheat', methods=['GET'])
+    @admins_only
+    def route_containers_cheat():
+        connected = False
+        try:
+            connected = container_manager.is_connected()
+        except ContainerException:
+            pass
+
+        return render_template('container_cheat.html', settings=container_manager.settings, connected=connected)
 
 
     app.register_blueprint(containers_bp)
