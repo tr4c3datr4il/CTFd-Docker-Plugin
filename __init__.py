@@ -457,37 +457,6 @@ def load(app: Flask):
         except ContainerException as err:
             return {"error": str(err)}, 500
 
-        user = get_current_user()
-
-        # Validate the request
-        if request.json is None:
-            return {"error": "Invalid request"}, 400
-
-        if request.json.get("chal_id", None) is None:
-            return {"error": "No chal_id specified"}, 400
-
-        if user is None:
-            return {"error": "User not found"}, 400
-        if user.team is None and is_team_mode() is True:
-            return {"error": "User not a member of a team"}, 400
-
-        if is_team_mode() is True:
-            running_container: ContainerInfoModel = ContainerInfoModel.query.filter_by(
-                challenge_id=request.json.get("chal_id"), team_id=user.team.id).first()
-
-            if running_container:
-                kill_container(running_container.container_id)
-
-            return create_container(request.json.get("chal_id"), user.team.id)
-        elif is_team_mode() is False:
-            running_container: ContainerInfoModel = ContainerInfoModel.query.filter_by(
-                challenge_id=request.json.get("chal_id"), team_id=user.id).first()
-
-            if running_container:
-                kill_container(running_container.container_id)
-
-            return create_container(request.json.get("chal_id"), user.id)
-
     @containers_bp.route('/api/stop', methods=['POST'])
     @authed_only
     @during_ctf_time_only
@@ -525,10 +494,9 @@ def load(app: Flask):
 
             return {"error": "No container found"}, 400
 
-
-    @containers_bp.route('/api/kill', methods=['POST'])
+    @containers_bp.route('/api/admin/kill', methods=['POST'])
     @admins_only
-    def route_kill_container():
+    def route_admin_kill_container():
         if request.json is None:
             return {"error": "Invalid request"}, 400
 

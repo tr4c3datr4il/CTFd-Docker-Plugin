@@ -1,252 +1,252 @@
 {% extends "container_base.html" %}
 
 {% block menu %}
-    <li class="nav-item">
-        <a class="nav-link active" href="#">Instances</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="/containers/settings">&#128279; Settings</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="/containers/cheat">&#128279; Share flag</a>
-    </li>
+<li class="nav-item">
+	<a class="nav-link active" href="#">Instances</a>
+</li>
+<li class="nav-item">
+	<a class="nav-link" href="/containers/settings">&#128279; Settings</a>
+</li>
+<li class="nav-item">
+	<a class="nav-link" href="/containers/cheat">&#128279; Share flag</a>
+</li>
 {% endblock %}
 
 {% block panel %}
-<div class="container containers-container">
-	{% with messages = get_flashed_messages() %}
-	{% if messages %}
-	{% for message in messages %}
-	<div class="alert alert-danger" role="alert">
-		{{ message }}
-	</div>
-	{% endfor %}
-	{% endif %}
-	{% endwith %}
-	<button class="btn btn-danger" id="container-purge-btn" onclick="purgeContainers()" style="float:right">Purge All
-		Containers</button>
-
-	<div class="mt-3">
-		<label for="team-filter"><strong>Filter </strong></label>
-		<div class="row">
-			<div class="col-md-4">
-				<div class="form-group">
-					<select id="team-filter" class="form-control">
-						<option value="">All Teams/Users</option>
-						<!-- Add options for teams dynamically based on your data -->
-					</select>
-				</div>
-			</div>
-			<div class="col-md-4">
-				<div class="form-group">
-					<select id="challenge-filter" class="form-control">
-						<option value="">All Challenges</option>
-						<!-- Add options for challenges dynamically based on your data -->
-					</select>
-				</div>
-			</div>
-			<div class="col-md-4">
-				<button class="btn btn-primary" id="apply-filter-btn" onclick="applyFilters()">Apply Filters</button>
-			</div>
+<!-- {% with messages = get_flashed_messages() %}
+		{% if messages %}
+		{% for message in messages %}
+		<div class="alert alert-danger" role="alert">
+			{{ message }}
 		</div>
-    </div>
+		{% endfor %}
+		{% endif %}
+		{% endwith %} -->
+<!-- <button class="btn btn-danger" id="container-purge-btn" onclick="purgeContainers()" style="float:right">Purge All
+			Containers</button>
+	
+		<div class="mt-3">
+			<label for="team-filter"><strong>Filter </strong></label>
+			<div class="row">
+				<div class="col-md-4">
+					<div class="form-group">
+						<select id="team-filter" class="form-control">
+							<option value="">All Teams/Users</option>
+						</select>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<div class="form-group">
+						<select id="challenge-filter" class="form-control">
+							<option value="">All Challenges</option>
+						</select>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<button class="btn btn-primary" id="apply-filter-btn" onclick="applyFilters()">Apply Filters</button>
+				</div>
+			</div>
+		</div> -->
 
-	<table class="table">
-		<thead>
-			<tr>
-				<td><strong>Container ID</strong>
-				</td>
-				<td><strong>Image</strong>
-				</td>
-				<td><strong>Challenge</strong>
-				</td>
-				<td><strong>Team/User</strong>
-				</td>
-				<td><strong>Port</strong>
-				</td>
-				<td><strong>Created</strong>
-				</td>
-				<td><strong>Expires</strong>
-				</td>
-				<td><strong>Running</strong>
-				</td>
-				<td><strong>Kill</strong>
-			</tr>
-		</thead>
-		<tbody id="container-table-body">
-			{% if containers %}
-			{% for c in containers %}
-			<tr>
-				<td class="container_item" id="{{ c.container_id }}">{{ c.container_id[:12] }}</td>
-				<td>{{ c.challenge.image }}</td>
-				<td>{{ c.challenge.name }} [{{ c.challenge_id }}]</td>
-				{% if c.team == None %}
-					<td>{{ c.user.name }} [{{ c.user_id }}]</td>
-				{% else %}
-					<td>{{ c.team.name }} [{{ c.team_id }}]</td>
-			   	{% endif %}
-				<td>{{ c.port }}</td>
-				<td>{{ c.timestamp|format_time }}</td>
-				<td>{{ c.expires|format_time }}</td>
-				{% if c.is_running %}
-				<td><span class="badge badge-success">Yes</span></td>
-				{% else %}
-				<td><span class="badge badge-danger">No</span></td>
-				{% endif %}
-				<td><button class="btn btn-danger containers-kill-btn"
-						onclick="killContainer('{{ c.container_id }}')"><i class="fa fa-times"></i></button></td>
-			</tr>
-			{% endfor %}
-			{% endif %}
-		</tbody>
-	</table>
+<div class="btn-group" role="group">
+	<button type="button" class="btn btn-outline-secondary" data-toggle="tooltip" title="" id="instances-restart-button"
+		data-test-id="cm-button-restart" data-original-title="Restart Instances">
+		<i class="btn-fa fas fa-sync"></i>
+	</button>
+	<button type="button" class="btn btn-outline-danger" data-toggle="tooltip" title="" id="instances-delete-button"
+		data-test-id="cm-button-destroy" data-original-title="Delete Instances">
+		<i class="btn-fa fas fa-trash-alt"></i>
+	</button>
 </div>
 
+<table class="table table-striped border">
+	<thead>
+		<tr>
+			<th class="border-right" data-checkbox>
+				<div class="form-check text-center" data-test-id="cm-checkbox-all">&nbsp; <input type="checkbox"
+						class="form-check-input" data-checkbox-all>
+				</div>
+			</th>
+			<th class="sort-col text-center">
+				<b>Challenge</b>
+				</td>
+			<th class="sort-col text-center">
+				<b>Container ID</b>
+				</td>
+			<th class="sort-col text-center">
+				<b>Team/User</b>
+				</td>
+			<th class="text-center">
+				<b>Connection Port</b>
+				</td>
+				<!-- <th class="text-center">
+					<b>Flag</b>
+					</td> -->
+			<th class="sort-col text-center">
+				<b>Since (UTC)</b>
+				</td>
+			<th class="sort-col text-center">
+				<b>Until (UTC)</b>
+				</td>
+			<th class="text-center">
+				<b>Restart</b>
+				</td>
+			<th class="text-center">
+				<b>Delete</b>
+				</td>
+		</tr>
+	</thead>
+	<tbody>
+		{% if containers %}
+		{% for c in containers %}
+		<tr>
+			<td class="border-right" data-checkbox>
+				<div class="form-check text-center">&nbsp; <input type="checkbox" class="form-check-input"
+						data-challenge-id="{{ c.challenge_id }}">
+				</div>
+			</td>
+			<td class="text-center">
+				<div class="form-check" id="challenge-id-div">
+					<a href="{{ url_for('admin.challenges_detail', challenge_id=c.challenge_id) }}">
+						{{ c.challenge.name }}
+					</a>
+				</div>
+			</td>
+			<td class="text-center">
+				<div class="form-check text-center">
+					{{ c.container_id[:12] }}
+				</div>
+			</td>
+			<td class="text-center">
+				{% if c.team == None %}
+				<a href="{{ url_for('admin.users_detail', user_id=c.user_id) }}">
+					{{ c.user.name }}
+				</a>
+				{% else %}
+				<a href="{{ url_for('admin.teams_detail', team_id=c.team_id) }}">
+					{{ c.team.name }}
+				</a> {% endif %}
+			</td>
+			<td class="text-center">
+				<div class="form-check" id="container-id-div">
+					{{ c.port }}
+				</div>
+			</td>
+			<td class="text-center timestamp">
+				{{ c.timestamp }}
+			</td>
+			<td class="text-center timestamp">
+				{{ c.expires }}
+			</td>
+			<td class="text-center">
+				<button class="btn btn-link p-0 restart-instance" challenge-id="{{ c.challenge_id }}" data-placement="top"
+					data-toggle="tooltip" title="Restart">
+					<i class="btn-fa fas fa-sync"></i>
+				</button>
+			</td>
+			<td class="text-center">
+				<button class="btn btn-link p-0 delete-instance" onclick="killContainer('{{ c.container_id }}')"
+					data-placement="top" data-toggle="tooltip" title="Destroy">
+					<i class="btn-fa fas fa-trash-alt"></i>
+				</button>
+			</td>
+		</tr>
+		{% endfor %}
+		{% endif %}
+	</tbody>
+</table>
 {% include "config/container_status.html" %}
+
+
+
 
 {% endblock %}
 
 
 {% block scripts %}
 <script>
+	document.addEventListener("DOMContentLoaded", function () {
+		function convertToGMT7() {
+			document.querySelectorAll(".timestamp").forEach(element => {
+				let originalTime = element.innerText.trim(); // Get the timestamp directly from the cell
+				if (!originalTime) return;
 
-	let globalData; 
-	fetch('/containers/api/running_containers')
-		.then((response) => {
-			if (!response.ok) {
-			throw new Error('Network response was not ok');
-			}
-			return response.json();
-		})
-		.then((data) => {
-			globalData = data;
-			// Data has been successfully fetched and parsed
-			// Now you can populate the teams and challenges selects
-			const teamSelect = document.getElementById("team-filter");
-			const challengeSelect = document.getElementById("challenge-filter");
+				// Convert to Date object
+				let dateObj = new Date(originalTime * 1000);
+				// Convert to GMT+7 manually
+				let utcTime = dateObj.getTime() + dateObj.getTimezoneOffset() * 60000; // Convert to UTC
+				let gmt7Date = new Date(utcTime + (7 * 3600000)); // Add 7 hours
 
-			// Populate the teams select
-			data.teams.forEach((team) => {
-				const option = document.createElement("option");
-				option.value = team;
-				option.text = team;
-				teamSelect.appendChild(option);
+				// Extract parts
+				let hours = String(gmt7Date.getHours()).padStart(2, '0');
+				let minutes = String(gmt7Date.getMinutes()).padStart(2, '0');
+				let seconds = String(gmt7Date.getSeconds()).padStart(2, '0');
+				let day = String(gmt7Date.getDate()).padStart(2, '0');
+				let month = String(gmt7Date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+				let year = gmt7Date.getFullYear();
+
+				// Format as "HH:mm:ss DD/MM/YYYY"
+				let formattedTime = `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
+
+				// Update the element with the formatted time
+				element.innerText = formattedTime;
 			});
+		}
 
-			// Populate the challenges select
-			data.challenges.forEach((challenge) => {
-				const option = document.createElement("option");
-				option.value = challenge;
-				option.text = challenge;
-				challengeSelect.appendChild(option);
-			});
-		})
-		.catch((error) => {
-			console.error('There was a problem with the fetch operation:', error);
+		convertToGMT7();
 	});
 
-	function applyFilters() {
-		const selectedTeam = document.getElementById("team-filter").value;
-		const selectedChallenge = document.getElementById("challenge-filter").value;
-
-		const responseData = globalData;
-
-		const containerTableBody = document.getElementById("container-table-body");
-		containerTableBody.innerHTML = "";
-
-		// Iterate through the containers in the JSON response
-		responseData.containers.forEach((container) => {
-			// Check if the container's team matches the selected team or if no team is selected
-			const isTeamMatch = selectedTeam === "" || container.team === selectedTeam || container.user === selectedTeam;
-			const isChallengeMatch = selectedChallenge === "" || container.challenge === selectedChallenge;
-
-			if (isTeamMatch && isChallengeMatch) {
-				// Create a new table row and populate it with container data
-				const newRow = document.createElement("tr");
-				if (typeof container.team === 'undefined') {
-					newRow.innerHTML = `
-						<td class="container_item" id="${container.container_id}">${container.container_id.slice(0, 12)}</td>
-						<td>${container.image}</td>
-						<td>${container.challenge}</td>
-						<td>${container.user}</td>
-						<td>${container.port}</td>
-						<td>${new Date(container.created * 1000).toLocaleString()}</td>
-						<td>${new Date(container.expires * 1000).toLocaleString()}</td>
-						<td><span class="badge badge-${container.is_running ? 'success' : 'danger'}">${container.is_running ? 'Yes' : 'No'}</span></td>
-						<td><button class="btn btn-danger containers-kill-btn" onclick="killContainer('${container.container_id}')"><i class="fa fa-times"></i></button></td>
-					`;
-				} else {
-					newRow.innerHTML = `
-						<td class="container_item" id="${container.container_id}">${container.container_id.slice(0, 12)}</td>
-						<td>${container.image}</td>
-						<td>${container.challenge}</td>
-						<td>${container.team}</td>
-						<td>${container.port}</td>
-						<td>${new Date(container.created * 1000).toLocaleString()}</td>
-						<td>${new Date(container.expires * 1000).toLocaleString()}</td>
-						<td><span class="badge badge-${container.is_running ? 'success' : 'danger'}">${container.is_running ? 'Yes' : 'No'}</span></td>
-						<td><button class="btn btn-danger containers-kill-btn" onclick="killContainer('${container.container_id}')"><i class="fa fa-times"></i></button></td>
-					`;
-				}
-			
-				// Append the new row to the table body
-				containerTableBody.appendChild(newRow);
-			}
-		});
-	}
-
-	function purgeContainers() {
-	var path = "/containers/api/purge";
-	var purgeButton = document.getElementById("container-purge-btn");
-
-	purgeButton.setAttribute("disabled", "disabled");
-
-	fetch(path, {
-		method: "POST",
-		headers: {
-		"Content-Type": "application/json",
-		"Accept": "application/json",
-		"CSRF-Token": init.csrfNonce,
-		},
-	})
-		.then((response) => response.json())
-		.then((data) => {
-		if (data.success == undefined) {
-			purgeButton.removeAttribute("disabled");
-		} else {
-			window.location.reload();
-		}
-		console.log(data);
-		})
-		.catch((error) => {
-		console.error("Error:", error);
-		});
-	}
-
 	function killContainer(container_id) {
-	var path = "/containers/api/kill";
+		var path = "/containers/api/admin/kill";
 
-	fetch(path, {
-		method: "POST",
-		headers: {
-		"Content-Type": "application/json",
-		"Accept": "application/json",
-		"CSRF-Token": init.csrfNonce,
-		},
-		body: JSON.stringify({ container_id: container_id }),
-	})
-		.then((response) => response.json())
-		.then((data) => {
-		if (data.success == undefined) {
-			purgeButton.removeAttribute("disabled");
-		} else {
-			window.location.reload();
-		}
-		console.log(data);
+		fetch(path, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Accept": "application/json",
+				"CSRF-Token": init.csrfNonce,
+			},
+			body: JSON.stringify({ container_id: container_id }),
 		})
-		.catch((error) => {
-		console.error("Error:", error);
-		});
+			.then((response) => response.json())
+			.then((data) => {
+				if (data.success == undefined) {
+					purgeButton.removeAttribute("disabled");
+				} else {
+					window.location.reload();
+				}
+				console.log(data);
+			})
+			.catch((error) => {
+				console.error("Error:", error);
+			});
 	}
+
+	function container_renew(container_id) {
+		var path = "/containers/api/admin/restart";
+
+		fetch(path, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Accept": "application/json",
+				"CSRF-Token": init.csrfNonce
+			},
+			body: JSON.stringify({ container_id: container_id }),
+		})
+		.then((response) => response.json())
+			.then((data) => {
+				if (data.success == undefined) {
+					purgeButton.removeAttribute("disabled");
+				} else {
+					window.location.reload();
+				}
+				console.log(data);
+			})
+			.catch((error) => {
+				console.error("Error:", error);
+			});
+	}
+
 </script>
 {% endblock %}
