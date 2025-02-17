@@ -22,19 +22,18 @@ USERS_MODE = "users"
 TEAMS_MODE = "teams"
 
 class ContainerChallenge(BaseChallenge):
-    id = "container"  # Unique identifier used to register challenges
-    name = "container"  # Name of a challenge type
-    templates = {  # Handlebars templates used for each aspect of challenge editing & viewing
+    id = "container"
+    name = "container"
+    templates = {
         "create": "/plugins/containers/assets/create.html",
         "update": "/plugins/containers/assets/update.html",
         "view": "/plugins/containers/assets/view.html",
     }
-    scripts = {  # Scripts that are loaded when a template is loaded
+    scripts = {
         "create": "/plugins/containers/assets/create.js",
         "update": "/plugins/containers/assets/update.js",
         "view": "/plugins/containers/assets/view.js",
     }
-    # Route at which files are accessible. This must be registered using register_plugin_assets_directory()
     route = "/plugins/containers/assets/"
 
     challenge_model = ContainerChallengeModel
