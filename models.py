@@ -55,3 +55,20 @@ class ContainerSettingsModel(db.Model):
     __mapper_args__ = {"polymorphic_identity": "container_settings"}
     key = db.Column(db.String(512), primary_key=True)
     value = db.Column(db.Text)
+
+
+
+class ContainerFlagModel(db.Model):
+    __mapper_args__ = {"polymorphic_identity": "container_flags"}
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    container_id = db.Column(db.String(512), db.ForeignKey("container_info_model.container_id", ondelete="CASCADE"))
+    flag = db.Column(db.Text, unique=True)  # Store flags uniquely
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))
+    used = db.Column(db.Boolean, default=False)
+
+    container = relationship(ContainerInfoModel, foreign_keys=[container_id])
+    challenge = relationship(ContainerChallengeModel, foreign_keys=[challenge_id])
+    user = relationship("Users", foreign_keys=[user_id])
+    team = relationship("Teams", foreign_keys=[team_id])

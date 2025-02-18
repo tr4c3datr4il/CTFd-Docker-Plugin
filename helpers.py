@@ -39,11 +39,13 @@ def kill_container(container_manager, container_id):
     try:
         container_manager.kill_container(container_id)
     except ContainerException:
-        return jsonify({"error": "Docker is not initialized. Please check your settings."})
+        return jsonify(
+            {"error": "Docker is not initialized. Please check your settings."}
+        )
 
     db.session.delete(container)
     db.session.commit()
-    
+
     return jsonify({"success": "Container killed"})
 
 
@@ -64,18 +66,22 @@ def renew_container(container_manager, chal_id, xid, is_team):
         return jsonify({"error": "Container not found, try resetting the container."})
 
     try:
-        running_container.expires = int(time.time() + container_manager.expiration_seconds)
+        running_container.expires = int(
+            time.time() + container_manager.expiration_seconds
+        )
         db.session.commit()
     except ContainerException:
         return jsonify({"error": "Database error occurred, please try again."})
 
-    return jsonify({
-        "success": "Container renewed",
-        "expires": running_container.expires,
-        "hostname": container_manager.settings.get("docker_hostname", ""),
-        "port": running_container.port,
-        "connect": challenge.connection_type,
-    })
+    return jsonify(
+        {
+            "success": "Container renewed",
+            "expires": running_container.expires,
+            "hostname": container_manager.settings.get("docker_hostname", ""),
+            "port": running_container.port,
+            "connect": challenge.connection_type,
+        }
+    )
 
 
 def create_container(container_manager, chal_id, xid, is_team):
@@ -100,19 +106,30 @@ def create_container(container_manager, chal_id, xid, is_team):
     ).count()
 
     if container_count >= max_containers:
-        return jsonify({"error": f"Max containers ({max_containers}) reached. Please stop a running container before starting a new one."}), 400
+        return (
+            jsonify(
+                {
+                    "error": f"Max containers ({max_containers}) reached. Please stop a running container before starting a new one."
+                }
+            ),
+            400,
+        )
 
     if running_container:
         # Check if the container is still running
         try:
             if container_manager.is_container_running(running_container.container_id):
-                return jsonify({
-                    "status": "already_running",
-                    "hostname": container_manager.settings.get("docker_hostname", ""),
-                    "port": running_container.port,
-                    "connect": challenge.connection_type,
-                    "expires": running_container.expires,
-                })
+                return jsonify(
+                    {
+                        "status": "already_running",
+                        "hostname": container_manager.settings.get(
+                            "docker_hostname", ""
+                        ),
+                        "port": running_container.port,
+                        "connect": challenge.connection_type,
+                        "expires": running_container.expires,
+                    }
+                )
             else:
                 db.session.delete(running_container)
                 db.session.commit()
@@ -121,38 +138,19 @@ def create_container(container_manager, chal_id, xid, is_team):
 
     # Start a new Docker container
     try:
-        created_container = container_manager.create_container(
-            challenge.image, challenge.port, challenge.command, challenge.volumes
-        )
+        created_container = container_manager.create_container(challenge, xid, is_team)
     except ContainerException as err:
         return jsonify({"error": str(err)})
 
-    port = container_manager.get_container_port(created_container.id)
-    if port is None:
-        return jsonify({"status": "error", "error": "Could not get port"})
-
-    expires = int(time.time() + container_manager.expiration_seconds)
-
-    new_container = ContainerInfoModel(
-        container_id=created_container.id,
-        challenge_id=challenge.id,
-        team_id=xid if is_team else None,
-        user_id=None if is_team else xid,
-        port=port,
-        timestamp=int(time.time()),
-        expires=expires,
+    return jsonify(
+        {
+            "status": "created",
+            "hostname": container_manager.settings.get("docker_hostname", ""),
+            "port": created_container["port"],
+            "connect": challenge.connection_type,
+            "expires": created_container["expires"],
+        }
     )
-
-    db.session.add(new_container)
-    db.session.commit()
-
-    return jsonify({
-        "status": "created",
-        "hostname": container_manager.settings.get("docker_hostname", ""),
-        "port": port,
-        "connect": challenge.connection_type,
-        "expires": expires,
-    })
 
 
 def view_container_info(container_manager, chal_id, xid, is_team):
@@ -171,13 +169,17 @@ def view_container_info(container_manager, chal_id, xid, is_team):
     if running_container:
         try:
             if container_manager.is_container_running(running_container.container_id):
-                return jsonify({
-                    "status": "already_running",
-                    "hostname": container_manager.settings.get("docker_hostname", ""),
-                    "port": running_container.port,
-                    "connect": challenge.connection_type,
-                    "expires": running_container.expires,
-                })
+                return jsonify(
+                    {
+                        "status": "already_running",
+                        "hostname": container_manager.settings.get(
+                            "docker_hostname", ""
+                        ),
+                        "port": running_container.port,
+                        "connect": challenge.connection_type,
+                        "expires": running_container.expires,
+                    }
+                )
             else:
                 db.session.delete(running_container)
                 db.session.commit()

@@ -18,9 +18,6 @@
     },
     "base_path": "/plugins/containers/assets/"
   },
-  "vars": {
-    "MAX_CONTAINERS_ALLOWED": 3
-  },
   "blueprint": {
     "template_folder": "templates",
     "static_folder": "assets"

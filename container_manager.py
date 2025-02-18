@@ -1,6 +1,8 @@
 import atexit
 import time
 import json
+import random
+import string
 
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -10,7 +12,15 @@ import paramiko.ssh_exception
 import requests
 
 from CTFd.models import db
-from .models import ContainerInfoModel
+from .models import ContainerInfoModel, ContainerFlagModel
+
+def generate_random_flag(challenge):
+    """Generate a random flag with the given length and format"""
+    flag_length = challenge.random_flag_length
+    random_part = "".join(
+        random.choices(string.ascii_letters + string.digits, k=flag_length)
+    )
+    return f"{challenge.flag_prefix}{random_part}{challenge.flag_suffix}"
 
 
 class ContainerException(Exception):
@@ -143,8 +153,10 @@ class ContainerManager:
         return container[0].status == "running"
 
     @run_command
-    def create_container(self, image: str, port: int, command: str, volumes: str):
+    def create_container(self, challenge, xid, is_team):
         kwargs = {}
+        
+        flag = generate_random_flag(challenge) if challenge.flag_mode == "random" else challenge.flag_prefix + challenge.flag_suffix
 
         # Set the memory and CPU limits for the container
         if self.settings.get("container_maxmemory"):
@@ -165,6 +177,7 @@ class ContainerManager:
                 ContainerException(
                     "Configured container CPU limit must be a number")
 
+        volumes = challenge.volumes
         if volumes is not None and volumes != "":
             print("Volumes:", volumes)
             try:
@@ -174,14 +187,48 @@ class ContainerManager:
                 raise ContainerException("Volumes JSON string is invalid")
 
         try:
-            return self.client.containers.run(
-                image,
-                ports={str(port): None},
-                command=command,
+            container = self.client.containers.run(
+                challenge.image,
+                ports={str(challenge.port): None},
+                command=challenge.command,
                 detach=True,
                 auto_remove=True,
+                environment={"FLAG": flag},
                 **kwargs
             )
+
+            port = self.get_container_port(container.id)
+            if port is None:
+                raise ContainerException("Could not get container port")
+            expires=int(time.time() + self.expiration_seconds)
+
+            new_container_entry = ContainerInfoModel(
+                container_id=container.id,
+                challenge_id=challenge.id,
+                team_id=xid if is_team else None,
+                user_id=None if is_team else xid,
+                port=port,
+                flag=flag,
+                timestamp=int(time.time()),
+                expires=expires
+            )
+            db.session.add(new_container_entry)
+            db.session.commit() 
+
+
+            # Save the flag in the database
+            new_flag_entry = ContainerFlagModel(
+                challenge_id=challenge.id,
+                container_id=container.id, 
+                flag=flag,
+                team_id=xid if is_team else None,
+                user_id=None if is_team else xid
+            )
+            db.session.add(new_flag_entry)
+            db.session.commit()
+
+
+            return {"container": container, "expires": expires, "port": port}
         except docker.errors.ImageNotFound:
             raise ContainerException("Docker image not found")
 
