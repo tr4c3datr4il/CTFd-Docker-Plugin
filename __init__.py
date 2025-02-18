@@ -177,7 +177,7 @@ class ContainerChallenge(BaseChallenge):
             return False, "Incorrect flag."
 
         # If this flag was already used, treat this as cheating => ban user or team
-        if container_flag.used:
+        if container_flag.used and challenge.flag_mode == "random":
             # Flag has already been used => cheating
             if is_team_mode():
                 # 1) Ban the "original" team that had this flag
