@@ -10,34 +10,24 @@ from flask import Blueprint, request, Flask, render_template, url_for, redirect,
 from CTFd.models import db, Solves
 from CTFd.plugins import register_plugin_assets_directory
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
-from CTFd.utils.decorators import authed_only, admins_only, during_ctf_time_only, ratelimit, require_verified_emails
-from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
-from CTFd.utils import get_config
-
 from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel
 from .container_manager import ContainerManager, ContainerException
+from .admin_routes import admin_bp, set_container_manager as set_admin_manager
+from .user_routes import containers_bp, set_container_manager as set_user_manager
+from .helpers import *
 
-USERS_MODE = "users"
-TEAMS_MODE = "teams"
+settings = json.load(open(get_settings_path()))
 
 class ContainerChallenge(BaseChallenge):
-    id = "container"
-    name = "container"
-    templates = {
-        "create": "/plugins/containers/assets/create.html",
-        "update": "/plugins/containers/assets/update.html",
-        "view": "/plugins/containers/assets/view.html",
-    }
-    scripts = {
-        "create": "/plugins/containers/assets/create.js",
-        "update": "/plugins/containers/assets/update.js",
-        "view": "/plugins/containers/assets/view.js",
-    }
-    route = "/plugins/containers/assets/"
+    id = settings["plugin-info"]["id"]
+    name = settings["plugin-info"]["name"]
+    templates = settings["plugin-info"]["templates"]
+    scripts = settings["plugin-info"]["scripts"]
+    route = settings["plugin-info"]["base_path"]
 
     challenge_model = ContainerChallengeModel
-    
+
     @classmethod
     def read(cls, challenge):
         """
@@ -53,7 +43,7 @@ class ContainerChallenge(BaseChallenge):
             "image": challenge.image,
             "port": challenge.port,
             "command": challenge.command,
-            "ctype": challenge.ctype,
+            "connection_type": challenge.connection_type,
             "initial": challenge.initial,
             "decay": challenge.decay,
             "minimum": challenge.minimum,
@@ -95,8 +85,8 @@ class ContainerChallenge(BaseChallenge):
         # It is important that this calculation takes into account floats.
         # Hence this file uses from __future__ import division
         value = (
-            ((challenge.minimum - challenge.initial) / (challenge.decay ** 2))
-            * (solve_count ** 2)
+            ((challenge.minimum - challenge.initial) / (challenge.decay**2))
+            * (solve_count**2)
         ) + challenge.initial
 
         value = math.ceil(value)
@@ -134,551 +124,33 @@ class ContainerChallenge(BaseChallenge):
         ContainerChallenge.calculate_value(challenge)
 
 
-def settings_to_dict(settings):
-    return {
-        setting.key: setting.value for setting in settings
-    }
-
-def is_team_mode():
-    mode = get_config("user_mode")
-    if mode == TEAMS_MODE:
-        return True
-    elif mode == USERS_MODE:
-        return False
-    else:
-        return None
-
 def load(app: Flask):
+    # Ensure database is initialized
     app.db.create_all()
+
+    # Register the challenge type
     CHALLENGE_CLASSES["container"] = ContainerChallenge
+
     register_plugin_assets_directory(
-        app, base_path="/plugins/containers/assets/"
+        app, base_path=settings["plugin-info"]["base_path"]
     )
 
     container_settings = settings_to_dict(ContainerSettingsModel.query.all())
     container_manager = ContainerManager(container_settings, app)
 
-    containers_bp = Blueprint(
-        'containers', __name__, template_folder='templates', static_folder='assets', url_prefix='/containers')
+    base_bp = Blueprint(
+        "containers",
+        __name__,
+        template_folder=settings["blueprint"]["template_folder"],
+        static_folder=settings["blueprint"]["static_folder"]
+    )
 
-    @containers_bp.app_template_filter("format_time")
-    def format_time_filter(unix_seconds):
-        dt = datetime.datetime.fromtimestamp(unix_seconds, tz=datetime.datetime.now(
-            datetime.timezone.utc).astimezone().tzinfo)
-        return dt.strftime("%H:%M:%S %d/%m/%Y")
+    set_admin_manager(container_manager)
+    set_user_manager(container_manager)
 
-    def kill_container(container_id):
-        container: ContainerInfoModel = ContainerInfoModel.query.filter_by(
-            container_id=container_id).first()
+    # Register the blueprints
+    app.register_blueprint(admin_bp)  # Admin APIs
+    app.register_blueprint(containers_bp) # User APIs
 
-        try:
-            container_manager.kill_container(container_id)
-        except ContainerException:
-            return {"error": "Docker is not initialized. Please check your settings."}
 
-        db.session.delete(container)
-
-        db.session.commit()
-        return {"success": "Container killed"}
-
-    def renew_container(chal_id, xid, is_team):
-        # Get the requested challenge
-        challenge = ContainerChallenge.challenge_model.query.filter_by(
-            id=chal_id).first()
-
-        # Make sure the challenge exists and is a container challenge
-        if challenge is None:
-            return {"error": "Challenge not found"}, 400
-
-        if is_team is True:
-            running_containers = ContainerInfoModel.query.filter_by(
-            challenge_id=challenge.id, team_id=xid)
-        else:
-            running_containers = ContainerInfoModel.query.filter_by(
-            challenge_id=challenge.id, user_id=xid)
-        running_container = running_containers.first()
-
-        if running_container is None:
-            return {"error": "Container not found, try resetting the container."}
-
-        try:
-            running_container.expires = int(
-                time.time() + container_manager.expiration_seconds)
-            db.session.commit()
-        except ContainerException:
-            return {"error": "Database error occurred, please try again."}
-
-        return {"success": "Container renewed", "expires": running_container.expires, "hostname": container_manager.settings.get("docker_hostname", ""), "port": running_container.port, "connect": challenge.ctype}
-
-    def create_container(chal_id, xid, is_team):
-        # Get the requested challenge
-        challenge = ContainerChallenge.challenge_model.query.filter_by(
-            id=chal_id).first()
-
-        # Make sure the challenge exists and is a container challenge
-        if challenge is None:
-            return {"error": "Challenge not found"}, 400
-
-        max_containers = int(container_manager.settings.get("max_containers", 3)) 
-
-        # Check for any existing containers for the team
-        if is_team is True:
-            running_containers = ContainerInfoModel.query.filter_by(
-                challenge_id=challenge.id, team_id=xid)
-            container_count = ContainerInfoModel.query.filter_by(team_id=xid).count()
-        else:
-            running_containers = ContainerInfoModel.query.filter_by(
-                challenge_id=challenge.id, user_id=xid)         
-            container_count = ContainerInfoModel.query.filter_by(user_id=xid).count()  
-        running_container = running_containers.first()
-
-        if container_count >= max_containers:
-            return {"error": f"Max containers ({max_containers}) reached. Please stop a running container before starting a new one."}, 400
-
-        # If a container is already running for the team, return it
-        if running_container:
-            # Check if Docker says the container is still running before returning it
-            try:
-                if container_manager.is_container_running(
-                        running_container.container_id):
-                    return json.dumps({
-                        "status": "already_running",
-                        "hostname": container_manager.settings.get("docker_hostname", ""),
-                        "port": running_container.port,
-                        "connect": challenge.ctype,
-                        "expires": running_container.expires
-                    })
-                else:
-                    # Container is not running, it must have died or been killed,
-                    # remove it from the database and create a new one
-                    running_containers.delete()
-                    db.session.commit()
-            except ContainerException as err:
-                return {"error": str(err)}, 500
-
-        # TODO: Should insert before creating container, then update. That would avoid a TOCTOU issue
-
-        # Run a new Docker container
-        try:
-            created_container = container_manager.create_container(
-                challenge.image, challenge.port, challenge.command, challenge.volumes)
-        except ContainerException as err:
-            return {"error": str(err)}
-
-        # Fetch the random port Docker assigned
-        port = container_manager.get_container_port(created_container.id)
-
-        # Port may be blank if the container failed to start
-        if port is None:
-            return json.dumps({
-                "status": "error",
-                "error": "Could not get port"
-            })
-
-        expires = int(time.time() + container_manager.expiration_seconds)
-
-        # Insert the new container into the database
-        if is_team is True:
-            new_container = ContainerInfoModel(
-                container_id=created_container.id,
-                challenge_id=challenge.id,
-                team_id=xid,
-                port=port,
-                timestamp=int(time.time()),
-                expires=expires
-            )
-        else: 
-            new_container = ContainerInfoModel(
-                container_id=created_container.id,
-                challenge_id=challenge.id,
-                user_id=xid,
-                port=port,
-                timestamp=int(time.time()),
-                expires=expires
-            )
-        db.session.add(new_container)
-        db.session.commit()
-
-        return json.dumps({
-            "status": "created",
-            "hostname": container_manager.settings.get("docker_hostname", ""),
-            "port": port,
-            "connect": challenge.ctype,
-            "expires": expires
-        })
-
-    def view_container_info(chal_id, xid, is_team):
-        # Get the requested challenge
-        challenge = ContainerChallenge.challenge_model.query.filter_by(
-            id=chal_id).first()
-
-        # Make sure the challenge exists and is a container challenge
-        if challenge is None:
-            return {"error": "Challenge not found"}, 400
-
-        # Check for any existing containers for the team
-        if is_team is True:
-            running_containers = ContainerInfoModel.query.filter_by(
-                challenge_id=challenge.id, team_id=xid)
-        else:
-            running_containers = ContainerInfoModel.query.filter_by(
-                challenge_id=challenge.id, user_id=xid)
-        running_container = running_containers.first()
-
-        # If a container is already running for the team, return it
-        if running_container:
-            # Check if Docker says the container is still running before returning it
-            try:
-                if container_manager.is_container_running(
-                        running_container.container_id):
-                    return json.dumps({
-                        "status": "already_running",
-                        "hostname": container_manager.settings.get("docker_hostname", ""),
-                        "port": running_container.port,
-                        "connect": challenge.ctype,
-                        "expires": running_container.expires
-                    })
-                else:
-                    # Container is not running, it must have died or been killed,
-                    # remove it from the database and create a new one
-                    running_containers.delete()
-                    db.session.commit()
-            except ContainerException as err:
-                return {"error": str(err)}, 500
-        else:
-            return {"status": "Challenge not started"}
-
-    def connect_type(chal_id):
-        # Get the requested challenge
-        challenge = ContainerChallenge.challenge_model.query.filter_by(
-            id=chal_id).first()
-
-        # Make sure the challenge exists and is a container challenge
-        if challenge is None:
-            return {"error": "Challenge not found"}, 400
-
-        return json.dumps({
-                        "status": "Ok",
-                        "connect": challenge.ctype
-                    })
-
-    @containers_bp.route('/api/get_connect_type/<int:challenge_id>', methods=['GET'])
-    @authed_only
-    @during_ctf_time_only
-    @require_verified_emails
-    @ratelimit(method="GET", limit=15, interval=60)
-    def get_connect_type(challenge_id):
-        try:
-            return connect_type(challenge_id)
-        except ContainerException as err:
-            return {"error": str(err)}, 500
-
-    @containers_bp.route('/api/view_info', methods=['POST'])
-    @authed_only
-    @during_ctf_time_only
-    @require_verified_emails
-    @ratelimit(method="POST", limit=15, interval=60)
-    def route_view_info():
-        user = get_current_user()
-
-        # Validate the request
-        if request.json is None:
-            return {"error": "Invalid request"}, 400
-
-        if request.json.get("chal_id", None) is None:
-            return {"error": "No chal_id specified"}, 400
-
-        if user is None:
-            return {"error": "User not found"}, 400
-        if user.team is None and is_team_mode() is True:
-            return {"error": "User not a member of a team"}, 400
-
-        try:
-            if is_team_mode() is True:
-                return view_container_info(request.json.get("chal_id"), user.team.id, True)
-            elif is_team_mode() is False:
-                return view_container_info(request.json.get("chal_id"), user.id, False)
-        except ContainerException as err:
-            return {"error": str(err)}, 500
-
-    @containers_bp.route('/api/request', methods=['POST'])
-    @authed_only
-    @during_ctf_time_only
-    @require_verified_emails
-    @ratelimit(method="POST", limit=6, interval=60)
-    def route_request_container():
-        user = get_current_user()
-
-        # Validate the request
-        if request.json is None:
-            return {"error": "Invalid request"}, 400
-
-        if request.json.get("chal_id", None) is None:
-            return {"error": "No chal_id specified"}, 400
-
-        if user is None:
-            return {"error": "User not found"}, 400
-        if user.team is None and is_team_mode() is True:
-            return {"error": "User not a member of a team"}, 400
-
-        try:
-            if is_team_mode() is True:
-                return create_container(request.json.get("chal_id"), user.team.id,True)
-            elif is_team_mode() is False:
-                return create_container(request.json.get("chal_id"), user.id, False)   
-        except ContainerException as err:
-            return {"error": str(err)}, 500
-
-    @containers_bp.route('/api/renew', methods=['POST'])
-    @authed_only
-    @during_ctf_time_only
-    @require_verified_emails
-    @ratelimit(method="POST", limit=6, interval=60)
-    def route_renew_container():
-        user = get_current_user()
-
-        # Validate the request
-        if request.json is None:
-            return {"error": "Invalid request"}, 400
-
-        if request.json.get("chal_id", None) is None:
-            return {"error": "No chal_id specified"}, 400
-
-        if user is None:
-            return {"error": "User not found"}, 400
-        if user.team is None and is_team_mode() is True:
-            return {"error": "User not a member of a team"}, 400
-
-        try:
-            if is_team_mode() is True:
-                return renew_container(request.json.get("chal_id"), user.team.id, True)
-            elif is_team_mode() is False:
-                return renew_container(request.json.get("chal_id"), user.id, False)
-        except ContainerException as err:
-            return {"error": str(err)}, 500
-
-    @containers_bp.route('/api/stop', methods=['POST'])
-    @authed_only
-    @during_ctf_time_only
-    @require_verified_emails
-    @ratelimit(method="POST", limit=10, interval=60)
-    def route_stop_container():
-        user = get_current_user()
-
-        # Validate the request
-        if request.json is None:
-            return {"error": "Invalid request"}, 400
-
-        if request.json.get("chal_id", None) is None:
-            return {"error": "No chal_id specified"}, 400
-
-        if user is None:
-            return {"error": "User not found"}, 400
-        if user.team is None and is_team_mode() is True:
-            return {"error": "User not a member of a team"}, 400
-
-        if is_team_mode() is True:
-            running_container: ContainerInfoModel = ContainerInfoModel.query.filter_by(
-                challenge_id=request.json.get("chal_id"), team_id=user.team.id).first()
-
-            if running_container:
-                return kill_container(running_container.container_id)
-
-            return {"error": "No container found"}, 400
-        elif is_team_mode() is False:
-            running_container: ContainerInfoModel = ContainerInfoModel.query.filter_by(
-                challenge_id=request.json.get("chal_id"), user_id=user.id).first()
-
-            if running_container:
-                return kill_container(running_container.container_id)
-
-            return {"error": "No container found"}, 400
-
-    @containers_bp.route('/api/admin/kill', methods=['POST'])
-    @admins_only
-    def route_admin_kill_container():
-        if request.json is None:
-            return {"error": "Invalid request"}, 400
-
-        if request.json.get("container_id", None) is None:
-            return {"error": "No container_id specified"}, 400
-
-        return kill_container(request.json.get("container_id"))
-
-    @containers_bp.route('/api/purge', methods=['POST'])
-    @admins_only
-    def route_purge_containers():
-        containers: "list[ContainerInfoModel]" = ContainerInfoModel.query.all()
-        for container in containers:
-            try:
-                kill_container(container.container_id)
-            except ContainerException:
-                pass
-        return {"success": "Purged all containers"}, 200
-
-    @containers_bp.route('/api/images', methods=['GET'])
-    @admins_only
-    def route_get_images():
-        try:
-            images = container_manager.get_images()
-        except ContainerException as err:
-            return {"error": str(err)}
-
-        return {"images": images}
-
-    @containers_bp.route('/api/settings/update', methods=['POST'])
-    @admins_only
-    def route_update_settings():
-
-        required_fields = ["docker_base_url", "docker_hostname", "container_expiration", "container_maxmemory", "container_maxcpu", "max_containers"]
-
-        # Validate required fields
-        for field in required_fields:
-            if request.form.get(field) is None:
-                return {"error": f"{field} is required."}, 400
-
-        # Update settings dynamically
-        for key in required_fields:
-            value = request.form.get(key)
-            setting = ContainerSettingsModel.query.filter_by(key=key).first()
-
-            if not setting:
-                setting = ContainerSettingsModel(key=key, value=value)
-                db.session.add(setting)
-            else:
-                setting.value = value
-
-        db.session.commit()
-
-        # Refresh container manager settings
-        container_manager.settings = settings_to_dict(ContainerSettingsModel.query.all())
-
-        if container_manager.settings.get("docker_base_url") is not None:
-            try:
-                container_manager.initialize_connection(
-                    container_manager.settings, app)
-            except ContainerException as err:
-                flash(str(err), "error")
-                return redirect(url_for(".route_containers_settings"))
-
-        return redirect(url_for(".route_containers_dashboard"))
-
-    @containers_bp.route('/api/running_containers', methods=['GET'])
-    @admins_only
-    def route_get_running_containers():
-        running_containers = ContainerInfoModel.query.order_by(
-            ContainerInfoModel.timestamp.desc()).all()
-
-        connected = False
-        try:
-            connected = container_manager.is_connected()
-        except ContainerException:
-            pass
-
-        # Create lists to store unique teams and challenges
-        unique_teams = set()
-        unique_challenges = set()
-
-        for i, container in enumerate(running_containers):
-            try:
-                running_containers[i].is_running = container_manager.is_container_running(
-                    container.container_id)
-            except ContainerException:
-                running_containers[i].is_running = False
-
-            # Add team and challenge to the unique sets
-            if is_team_mode() is True:
-                unique_teams.add(f"{container.team.name} [{container.team_id}]")
-            else:   
-                unique_teams.add(f"{container.user.name} [{container.user_id}]")
-            unique_challenges.add(f"{container.challenge.name} [{container.challenge_id}]")
-
-        # Convert unique sets to lists
-        unique_teams_list = list(unique_teams)
-        unique_challenges_list = list(unique_challenges)
-
-        # Create a list of dictionaries containing running_containers data
-        running_containers_data = []
-        for container in running_containers:
-            if is_team_mode() is True:
-                container_data = {
-                    "container_id": container.container_id,
-                    "image": container.challenge.image,
-                    "challenge": f"{container.challenge.name} [{container.challenge_id}]",
-                    "team": f"{container.team.name} [{container.team_id}]",
-                    "port": container.port,
-                    "created": container.timestamp,
-                    "expires": container.expires,
-                    "is_running": container.is_running
-                }
-            else:
-                container_data = {
-                    "container_id": container.container_id,
-                    "image": container.challenge.image,
-                    "challenge": f"{container.challenge.name} [{container.challenge_id}]",
-                    "user": f"{container.user.name} [{container.user_id}]",
-                    "port": container.port,
-                    "created": container.timestamp,
-                    "expires": container.expires,
-                    "is_running": container.is_running
-                }
-            running_containers_data.append(container_data)
-
-        # Create a JSON response containing running_containers_data, unique teams, and unique challenges
-        response_data = {
-            "containers": running_containers_data,
-            "connected": connected,
-            "teams": unique_teams_list,
-            "challenges": unique_challenges_list
-        }
-
-        # Return the JSON response
-        return json.dumps(response_data)
-
-    @containers_bp.route('/dashboard', methods=['GET'])
-    @admins_only
-    def route_containers_dashboard():
-        connected = False
-        try:
-            connected = container_manager.is_connected()
-        except ContainerException:
-            pass
-
-        running_containers = ContainerInfoModel.query.order_by(
-            ContainerInfoModel.timestamp.desc()).all()
-
-        for i, container in enumerate(running_containers):
-            try:
-                running_containers[i].is_running = container_manager.is_container_running(
-                    container.container_id)
-            except ContainerException:
-                running_containers[i].is_running = False
-
-        return render_template('container_dashboard.html', containers=running_containers, connected=connected)
-
-
-    @containers_bp.route('/settings', methods=['GET'])
-    @admins_only
-    def route_containers_settings():
-        connected = False
-        try:
-            connected = container_manager.is_connected()
-        except ContainerException:
-            pass
-
-        return render_template('container_settings.html', settings=container_manager.settings, connected=connected)
-
-
-    @containers_bp.route('/cheat', methods=['GET'])
-    @admins_only
-    def route_containers_cheat():
-        connected = False
-        try:
-            connected = container_manager.is_connected()
-        except ContainerException:
-            pass
-
-        return render_template('container_cheat.html', settings=container_manager.settings, connected=connected)
-
-
-    app.register_blueprint(containers_bp)
+    app.register_blueprint(base_bp)

@@ -5,10 +5,10 @@
 	<a class="nav-link active" href="#">Instances</a>
 </li>
 <li class="nav-item">
-	<a class="nav-link" href="/containers/settings">&#128279; Settings</a>
+	<a class="nav-link" href="/containers/admin/settings">&#128279; Settings</a>
 </li>
 <li class="nav-item">
-	<a class="nav-link" href="/containers/cheat">&#128279; Share flag</a>
+	<a class="nav-link" href="/containers/admin/cheat">&#128279; Share flag</a>
 </li>
 {% endblock %}
 
@@ -197,7 +197,7 @@
 	});
 
 	function killContainer(container_id) {
-		var path = "/containers/api/admin/kill";
+		var path = "/containers/admin/api/kill";
 
 		fetch(path, {
 			method: "POST",

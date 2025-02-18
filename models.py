@@ -14,12 +14,18 @@ class ContainerChallengeModel(Challenges):
     port = db.Column(db.Integer)
     command = db.Column(db.Text, default="")
     volumes = db.Column(db.Text, default="")
-    ctype = db.Column(db.Text)
+    connection_type = db.Column(db.Text)
 
     # Dynamic challenge properties
     initial = db.Column(db.Integer, default=0)
     minimum = db.Column(db.Integer, default=0)
     decay = db.Column(db.Integer, default=0)
+
+    # Random flag properties
+    flag_mode = db.Column(db.Text, default="static")
+    random_flag_length = db.Column(db.Integer, default=10)
+    flag_prefix = db.Column(db.Text, default="CTF{")
+    flag_suffix = db.Column(db.Text, default="}")
 
     def __init__(self, *args, **kwargs):
         super(ContainerChallengeModel, self).__init__(**kwargs)
@@ -32,19 +38,18 @@ class ContainerInfoModel(db.Model):
     challenge_id = db.Column(
         db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE")
     )
-    team_id = db.Column(
-        db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE")
-    )
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE")
-    )
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
     port = db.Column(db.Integer)
     timestamp = db.Column(db.Integer)
     expires = db.Column(db.Integer)
+    flag = db.Column(db.Text, default="")
+
     team = relationship("Teams", foreign_keys=[team_id])
     user = relationship("Users", foreign_keys=[user_id])
-    challenge = relationship(ContainerChallengeModel,
-                             foreign_keys=[challenge_id])
+
+    challenge = relationship(ContainerChallengeModel, foreign_keys=[challenge_id])
+
 
 class ContainerSettingsModel(db.Model):
     __mapper_args__ = {"polymorphic_identity": "container_settings"}

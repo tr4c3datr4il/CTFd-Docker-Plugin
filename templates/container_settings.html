@@ -3,20 +3,20 @@
 
 {% block menu %}
 <li class="nav-item">
-    <a class="nav-link" href="/containers/dashboard">&#128279; Instances</a>
+    <a class="nav-link" href="/containers/admin/dashboard">&#128279; Instances</a>
 </li>
 <li class="nav-item">
     <a class="nav-link active" data-toggle="pill" href="#settings">Settings</a>
 </li>
 <li class="nav-item">
-    <a class="nav-link" href="/containers/cheat">&#128279; Share flag</a>
+    <a class="nav-link" href="/containers/admin/cheat">&#128279; Share flag</a>
 </li>
 {% endblock %}
 
 {% block panel %}
 {% include "components/errors.html" %}
 <div role="tabpanel" class="tab-pane config-section active" id="settings">
-    <form method="post" action="/containers/api/settings/update" accept-charset="utf-8" autocomplete="off" role="form"
+    <form method="post" action="/containers/admin/api/settings" accept-charset="utf-8" autocomplete="off" role="form"
         class="form-horizontal" enctype="multipart/form-data">
         <div class="tab-content">
             <div class="tab-pane fade show active" id="docker" role="tabpanel" aria-autocomplete="none">
