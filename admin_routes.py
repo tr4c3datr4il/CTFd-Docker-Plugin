@@ -133,13 +133,26 @@ def route_admin_kill_container():
 @admin_bp.route("/api/purge", methods=["POST"])
 @admins_only
 def route_purge_containers():
-    containers: "list[ContainerInfoModel]" = ContainerInfoModel.query.all()
-    for container in containers:
-        try:
-            kill_container(container.container_id)
-        except ContainerException:
-            pass
-    return {"success": "Purged all containers"}, 200
+    """Bulk delete multiple containers"""
+    data = request.get_json()
+    container_ids = data.get("container_ids", [])
+
+    if not container_ids:
+        return jsonify({"error": "No containers selected"}), 400
+
+    deleted_count = 0
+    for container_id in container_ids:
+        container = ContainerInfoModel.query.filter_by(container_id=container_id).first()
+        if container:
+            try:
+                container_manager.kill_container(container_id)
+                db.session.delete(container)
+                deleted_count += 1
+            except ContainerException:
+                continue
+
+    db.session.commit()
+    return jsonify({"success": f"Deleted {deleted_count} container(s)"})
 
 @admin_bp.route("/api/images", methods=["GET"])
 @admins_only
