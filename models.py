@@ -62,7 +62,7 @@ class ContainerFlagModel(db.Model):
     __mapper_args__ = {"polymorphic_identity": "container_flags"}
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    container_id = db.Column(db.String(512), db.ForeignKey("container_info_model.container_id", ondelete="CASCADE"))
+    container_id = db.Column(db.String(512), db.ForeignKey("container_info_model.container_id"), nullable=True)
     flag = db.Column(db.Text, unique=True)  # Store flags uniquely
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))

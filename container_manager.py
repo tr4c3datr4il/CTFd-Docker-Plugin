@@ -12,7 +12,7 @@ import paramiko.ssh_exception
 import requests
 
 from CTFd.models import db
-from .models import ContainerInfoModel, ContainerFlagModel
+from .models import ContainerInfoModel, ContainerFlagModel, ContainerFlagModel
 
 def generate_random_flag(challenge):
     """Generate a random flag with the given length and format"""
@@ -260,6 +260,19 @@ class ContainerManager:
     def kill_container(self, container_id: str):
         try:
             self.client.containers.get(container_id).kill()
+
+            used_flags = ContainerFlagModel.query.filter_by(
+                container_id=container_id
+            ).all()
+
+            for f in used_flags:
+                if f.used:
+                    # Keep this flag, but remove its container reference
+                    f.container_id = None
+                else:
+                    # If the flag wasn't used, delete it
+                    db.session.delete(f)
+
         except docker.errors.NotFound:
             pass
 

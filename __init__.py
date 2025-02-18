@@ -208,11 +208,13 @@ class ContainerChallenge(BaseChallenge):
                 user.banned = True
 
             db.session.commit()
+            container_manager.kill_container(container_info.container_id)
             return False, "Cheating detected. Both teams have been banned."
 
         # Otherwise, mark the container_flag as used and accept it
         container_flag.used = True
         db.session.commit()
+        container_manager.kill_container(container_info.container_id)
 
         # If we get here, it's correct and not used before => success
         return True, "Correct!"
