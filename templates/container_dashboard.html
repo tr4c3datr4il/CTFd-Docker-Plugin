@@ -73,16 +73,16 @@
 				<b>Team/User</b>
 				</td>
 			<th class="text-center">
-				<b>Connection Port</b>
+				<b>Flag</b>
 				</td>
-				<!-- <th class="text-center">
-					<b>Flag</b>
-					</td> -->
 			<th class="sort-col text-center">
 				<b>Created</b>
 				</td>
 			<th class="sort-col text-center">
 				<b>End</b>
+			</td>
+			<th class="text-center">
+				<b>Connect Info</b>
 				</td>
 			<th class="text-center">
 				<b>Destroy</b>
@@ -121,8 +121,8 @@
 				</a> {% endif %}
 			</td>
 			<td class="text-center">
-				<div class="form-check" id="container-id-div">
-					{{ c.port }}
+				<div class="form-check text-center">
+					{{ c.flag }}
 				</div>
 			</td>
 			<td class="text-center timestamp">
@@ -130,6 +130,11 @@
 			</td>
 			<td class="text-center timestamp">
 				{{ c.expires }}
+			</td>
+			<td class="text-center">
+				<button class="btn btn-link p-0" onclick="copyToClipboard('{{ c.container_id }}', '{{ c.challenge.connection_type }}', '{{ c.hostname }}', '{{ c.port }}')">
+					<i class="fas fa-copy"></i>
+				</button>
 			</td>
 			<td class="text-center">
 				<button class="btn btn-link p-0 delete-instance" onclick="killContainer('{{ c.container_id }}')"
@@ -269,6 +274,16 @@
 			.catch(error => {
 				console.error("Error:", error);
 			});
+	}
+
+	function copyToClipboard(container_id, connection_type, hostname, port) {
+		let textToCopy = (connection_type === "tcp") ? `nc ${hostname} ${port}` : `http://${hostname}:${port}`;
+
+		navigator.clipboard.writeText(textToCopy).then(() => {
+			alert("Copied to clipboard: " + textToCopy);
+		}).catch(err => {
+			console.error("Failed to copy:", err);
+		});
 	}
 </script>
 {% endblock %}
