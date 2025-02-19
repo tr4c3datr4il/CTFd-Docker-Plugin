@@ -103,7 +103,47 @@
 </div>
 <!-- Flag Mode, Prefix, Suffix, Random Length -->
 <div class="form-group">
-	<label for="flag_mode">Flag Mode</label>
+	<label for="flag_mode">Flag Mode
+		<br>
+		<small class="form-text text-muted">
+			<ul>
+				<li><strong>Static Mode:</strong>
+					<ul>
+						<li>The flag follows a fixed format:
+							<code>&lt;prefix&gt; + &lt;flag content&gt; + &lt;suffix&gt;</code>
+						</li>
+						<li>Example: If your flag is <code>CTF{this_is_the_flag}</code>, you provide:
+							<ul>
+								<li><strong>Prefix:</strong> <code>CTF{this_is_the_flag</code></li>
+								<li><strong>Suffix:</strong> <code>}</code></li>
+								<li><strong>Random Length:</strong> Leave as default</li>
+							</ul>
+						</li>
+					</ul>
+				</li>
+				<li><strong>Random Mode:</strong>
+					<ul>
+						<li>The flag follows the format:
+							<code>&lt;prefix&gt; + &lt;random part (length defined)&gt; + &lt;suffix&gt;</code>
+						</li>
+						<li>Example 1: If <code>random_length = 8</code>, a flag could be: <code>CTF{a1b2c3d4}</code>
+						</li>
+						<li>Example 2: The random part can be appended to a predefined flag:
+							<code>CTF{this_is_the_flag_a1b2c3d4}</code>
+						</li>
+						<li>You provide:
+							<ul>
+								<li><strong>Prefix:</strong> <code>CTF{</code></li>
+								<li><strong>Suffix:</strong> <code>}</code></li>
+								<li><strong>Random Length:</strong> <code>8</code></li>
+							</ul>
+						</li>
+					</ul>
+				</li>
+			</ul>
+			With this type of challenge, you don't need to specify flag in the popup (just leave empty)!
+		</small>
+	</label>
 	<select class="form-control" name="flag_mode" id="flag_mode">
 		<option value="static" {% if challenge.flag_mode=="static" %}selected{% endif %}>
 			Static
