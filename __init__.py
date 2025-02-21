@@ -126,97 +126,42 @@ class ContainerChallenge(BaseChallenge):
 
     @classmethod
     def attempt(cls, challenge, request):
-        """
-        Overridden attempt method which CTFd calls automatically
-        when a user submits a flag for this challenge.
+        # 1) Gather user/team & submitted_flag
+        try:
+            user, x_id, submitted_flag = get_xid_and_flag()
+        except ValueError as e:
+            return False, str(e)
 
-        Returns:
-            (True/False, message_string)
-        """
-        # Grab the current user
-        user = get_current_user()
-        if user is None:
-            return False, "You must be logged in to attempt this challenge."
+        # 2) Get running container
+        container_info = None
+        try:
+            container_info = get_active_container(challenge.id, x_id)
+        except ValueError as e:
+            return False, str(e)
 
-        # If your CTF is in team mode, you must have a valid team
-        if is_team_mode():
-            if not user.team_id:
-                return False, "You must belong to a team to solve this challenge."
-            x_id = user.team_id
-        else:
-            x_id = user.id
-
-        data = request.get_json()
-        # 2) If there's no JSON, fall back to form data (just in case)
-        if not data:
-            data = request.form
-
-        submitted_flag = data.get("submission", "").strip()
-        if not submitted_flag:
-            return False, "No flag provided. a"
-
-        # Pull the user's (or team's) running container, if any, for this challenge
-        container_info = ContainerInfoModel.query.filter_by(
-            challenge_id=challenge.id,
-            team_id=x_id if is_team_mode() else None,
-            user_id=None if is_team_mode() else x_id,
-        ).first()
-
-        # If no container or container is not running, block the solve
-        if not container_info:
-            return False, "No container is currently active for this challenge."
-        from . import container_manager  # if your ContainerManager instance is importable
+        # 3) Check if container is actually running
+        from . import container_manager
         if not container_manager or not container_manager.is_container_running(container_info.container_id):
             return False, "Your container is not running; you cannot submit yet."
 
-        # Look in ContainerFlagModel for a row that matches this flag
-        container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
+        # 4) Look up container_flag
+        try:
+            container_flag = get_container_flag(submitted_flag)
+        except ValueError as e:
+            return False, str(e)
 
-        # If that flag doesn't exist in the container_flags table, reject
-        if not container_flag:
-            return False, "Incorrect flag."
-
-        # If this flag was already used, treat this as cheating => ban user or team
+        # 5) If used & random => cheating => ban
         if container_flag.used and challenge.flag_mode == "random":
-            # Flag has already been used => cheating
-            if is_team_mode():
-                # 1) Ban the "original" team that had this flag
-                original_team_id = container_flag.team_id
-                if original_team_id:
-                    original_team = Teams.query.filter_by(id=original_team_id).first()
-                    if original_team:
-                        original_team.banned = True
-                        for member in original_team.members:
-                            member.banned = True
+            try:
+                ban_team_and_original_owner(container_flag, user, container_manager, container_info)
+            except ValueError as e:
+                return False, str(e)
 
-                # 2) Ban the "submitting" team that just tried to reuse the flag
-                submit_team_id = user.team_id
-                if submit_team_id:
-                    submit_team = Teams.query.filter_by(id=submit_team_id).first()
-                    if submit_team:
-                        submit_team.banned = True
-                        for member in submit_team.members:
-                            member.banned = True
-
-            else:
-                # User mode => ban both the original user and the new user
-                if container_flag.user_id:
-                    original_user = Users.query.filter_by(id=container_flag.user_id).first()
-                    if original_user:
-                        original_user.banned = True
-
-                user.banned = True
-
-            db.session.commit()
-            container_manager.kill_container(container_info.container_id)
-            return False, "Cheating detected. Both teams have been banned."
-
-        # Otherwise, mark the container_flag as used and accept it
+        # 6) Mark used & kill container => success
         container_flag.used = True
         db.session.commit()
         container_manager.kill_container(container_info.container_id)
 
-        # If we get here, it's correct and not used before => success
         return True, "Correct!"
 
 container_manager = None  # Global

@@ -1,11 +1,13 @@
 import os
 import json
 import time
-from flask import jsonify
+from flask import jsonify, request
 from CTFd.utils import get_config
-from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel
+from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel, ContainerFlagModel
 from .container_manager import ContainerManager, ContainerException
-from CTFd.models import db
+from CTFd.models import db, Teams, Users
+from CTFd.utils.user import get_current_user
+
 
 def get_settings_path():
     """Retrieve the path to settings.json"""
@@ -197,3 +199,92 @@ def connect_type(chal_id):
         return jsonify({"error": "Challenge not found"}), 400
 
     return jsonify({"status": "Ok", "connect": challenge.connection_type})
+
+def get_xid_and_flag():
+    """
+    1) Returns (x_id, submitted_flag) from the current request
+    2) Raises ValueError with an error message if something is missing
+    """
+    user = get_current_user()
+    if not user:
+        raise ValueError("You must be logged in to attempt this challenge.")
+
+    if is_team_mode():
+        if not user.team_id:
+            raise ValueError("You must belong to a team to solve this challenge.")
+        x_id = user.team_id
+    else:
+        x_id = user.id
+
+    # Parse flag from JSON or form
+    data = request.get_json() or request.form
+    submitted_flag = data.get("submission", "").strip()
+    if not submitted_flag:
+        raise ValueError("No flag provided.")
+
+    return user, x_id, submitted_flag
+
+
+def get_active_container(challenge_id, x_id):
+    """
+    Returns the ContainerInfoModel if found and running, else raises ValueError with a message.
+    """
+    container_info = ContainerInfoModel.query.filter_by(
+        challenge_id=challenge_id,
+        team_id=x_id if is_team_mode() else None,
+        user_id=None if is_team_mode() else x_id,
+    ).first()
+
+    if not container_info:
+        raise ValueError("No container is currently active for this challenge.")
+
+    return container_info
+
+
+def get_container_flag(submitted_flag):
+    """
+    Fetches the ContainerFlagModel for the given submitted_flag.
+    Raises ValueError if not found.
+    """
+    container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
+    if not container_flag:
+        raise ValueError("Incorrect flag.")
+    return container_flag
+
+
+def ban_team_and_original_owner(container_flag, user, container_manager, container_info):
+    """
+    If we're in team mode, ban both the original and the submitting team.
+    If user mode, ban both the original user and this user.
+    Then kill the container, commit, and raise a ValueError for cheating.
+    """
+    from CTFd.models import Teams, Users
+
+    # Flag was used => cheating => ban original owners:
+    if is_team_mode():
+        # original
+        original_team = Teams.query.filter_by(id=container_flag.team_id).first()
+        if original_team:
+            original_team.banned = True
+            for member in original_team.members:
+                member.banned = True
+
+        # new
+        submit_team = Teams.query.filter_by(id=user.team_id).first()
+        if submit_team:
+            submit_team.banned = True
+            for member in submit_team.members:
+                member.banned = True
+    else:
+        # ban original user
+        if container_flag.user_id:
+            original_user = Users.query.filter_by(id=container_flag.user_id).first()
+            if original_user:
+                original_user.banned = True
+
+        # ban this user
+        user.banned = True
+
+    db.session.commit()
+    container_manager.kill_container(container_info.container_id)
+    raise ValueError("Cheating detected. Both teams have been banned.")
