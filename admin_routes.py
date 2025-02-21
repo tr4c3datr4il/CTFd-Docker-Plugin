@@ -1,7 +1,7 @@
 import json
 from flask import Blueprint, request, jsonify, render_template, url_for, redirect, Flask, flash
 from CTFd.models import db
-from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel
+from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel, ContainerCheatLog
 from .container_manager import ContainerManager, ContainerException
 from CTFd.utils.decorators import admins_only
 from .helpers import *
@@ -66,12 +66,13 @@ def route_containers_cheat():
     except ContainerException:
         pass
 
+    cheat_logs = ContainerCheatLog.query.order_by(ContainerCheatLog.timestamp.desc()).all()
+
     return render_template(
         "container_cheat.html",
-        settings=container_manager.settings,
         connected=connected,
+        cheat_logs=cheat_logs
     )
-
 
 # Admin API
 @admin_bp.route("/api/settings", methods=["POST"])

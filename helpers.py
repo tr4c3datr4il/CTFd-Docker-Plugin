@@ -3,7 +3,7 @@ import json
 import time
 from flask import jsonify, request
 from CTFd.utils import get_config
-from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel, ContainerFlagModel
+from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel, ContainerFlagModel, ContainerCheatLog
 from .container_manager import ContainerManager, ContainerException
 from CTFd.models import db, Teams, Users
 from CTFd.utils.user import get_current_user
@@ -258,7 +258,18 @@ def ban_team_and_original_owner(container_flag, user, container_manager, contain
     If user mode, ban both the original user and this user.
     Then kill the container, commit, and raise a ValueError for cheating.
     """
-    from CTFd.models import Teams, Users
+    cheat_log = ContainerCheatLog(
+        reused_flag=container_flag.flag,
+        challenge_id=container_flag.challenge_id,
+        original_team_id=container_flag.team_id,
+        original_user_id=container_flag.user_id,
+        second_team_id=user.team_id if is_team_mode() else None,
+        second_user_id=user.id if not is_team_mode() else None,
+        timestamp=int(time.time())
+    )
+    db.session.add(cheat_log)
+    db.session.commit()
+
 
     # Flag was used => cheating => ban original owners:
     if is_team_mode():

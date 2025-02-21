@@ -11,7 +11,7 @@ from CTFd.models import db, Solves, Teams, Users
 from CTFd.plugins import register_plugin_assets_directory
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.utils.modes import get_model
-from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel, ContainerFlagModel
+from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel, ContainerFlagModel, ContainerCheatLog  
 from .container_manager import ContainerManager, ContainerException
 from .admin_routes import admin_bp, set_container_manager as set_admin_manager
 from .user_routes import containers_bp, set_container_manager as set_user_manager

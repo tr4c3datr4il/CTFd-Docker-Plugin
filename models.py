@@ -61,6 +61,7 @@ class ContainerSettingsModel(db.Model):
 class ContainerFlagModel(db.Model):
     __mapper_args__ = {"polymorphic_identity": "container_flags"}
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
     container_id = db.Column(db.String(512), db.ForeignKey("container_info_model.container_id"), nullable=True)
     flag = db.Column(db.Text, unique=True)  # Store flags uniquely
@@ -72,3 +73,35 @@ class ContainerFlagModel(db.Model):
     challenge = relationship(ContainerChallengeModel, foreign_keys=[challenge_id])
     user = relationship("Users", foreign_keys=[user_id])
     team = relationship("Teams", foreign_keys=[team_id])
+
+
+
+class ContainerCheatLog(db.Model):
+    __mapper_args__ = {"polymorphic_identity": "container_cheat_logs"}
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    # The reused flag
+    reused_flag = db.Column(db.Text)
+
+    # Which challenge was it from?
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    # We'll store the relevant relationships if needed
+    challenge = db.relationship("ContainerChallengeModel", foreign_keys=[challenge_id])
+
+    # Original owners
+    original_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=True)
+    original_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+
+    # The second submitter who tried reusing the flag
+    second_team_id = db.Column(db.Integer, db.ForeignKey("teams.id"), nullable=True)
+    second_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+
+    # Time of the cheating attempt
+    timestamp = db.Column(db.Integer)
+
+    # Relationship to help retrieve team/user if needed
+    original_team = db.relationship("Teams", foreign_keys=[original_team_id])
+    original_user = db.relationship("Users", foreign_keys=[original_user_id])
+    second_team = db.relationship("Teams", foreign_keys=[second_team_id])
+    second_user = db.relationship("Users", foreign_keys=[second_user_id])
