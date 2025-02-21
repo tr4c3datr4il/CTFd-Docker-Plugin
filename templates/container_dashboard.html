@@ -97,9 +97,9 @@
 				{{ c.expires }}
 			</td>
 			<td class="text-center">
-				<button class="btn btn-link p-0" onclick="copyToClipboard('{{ c.container_id }}', '{{ c.challenge.connection_type }}', '{{ c.hostname }}', '{{ c.port }}')">
-					<i class="fas fa-copy"></i>
-				</button>
+				<div class="form-check text-center">
+					{{ c.challenge.connection_type }} - {{ c.port }}
+				</div>
 			</td>
 			<td class="text-center">
 				<button class="btn btn-link p-0 delete-instance" onclick="killContainer('{{ c.container_id }}')"
@@ -239,16 +239,6 @@
 			.catch(error => {
 				console.error("Error:", error);
 			});
-	}
-
-	function copyToClipboard(container_id, connection_type, hostname, port) {
-		let textToCopy = (connection_type === "tcp") ? `nc ${hostname} ${port}` : `http://${hostname}:${port}`;
-
-		navigator.clipboard.writeText(textToCopy).then(() => {
-			alert("Copied to clipboard: " + textToCopy);
-		}).catch(err => {
-			console.error("Failed to copy:", err);
-		});
 	}
 </script>
 {% endblock %}

@@ -37,7 +37,6 @@ function mergeQueryParams(parameters, queryParameters) {
     return queryParameters;
 }
 
-// ✅ Improved resetAlert() - Shows spinner & disables buttons
 function resetAlert() {
     let alert = document.getElementById("deployment-info");
     alert.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
@@ -51,7 +50,6 @@ function resetAlert() {
     return alert;
 }
 
-// ✅ Re-enable buttons after request completes
 function enableButtons() {
     document.getElementById("create-chal").disabled = false;
     document.getElementById("extend-chal").disabled = false;
@@ -71,7 +69,6 @@ function calculateExpiry(date) {
     return Math.ceil((new Date(date * 1000) - new Date()) / 1000 / 60);
 }
 
-// ✅ Improved - Clears old content before adding new challenge links
 function createChallengeLinkElement(data, parent) {
     parent.innerHTML = "";
 
@@ -92,7 +89,6 @@ function createChallengeLinkElement(data, parent) {
     }
 }
 
-// ✅ Updated API Requests - Properly handles spinner, errors, and button states
 function view_container_info(challenge_id) {
     let alert = resetAlert();
 
@@ -125,7 +121,7 @@ function view_container_info(challenge_id) {
         alert.classList.add("alert-danger");
         console.error("Fetch error:", error);
     })
-    .finally(enableButtons); // ✅ Always re-enable buttons
+    .finally(enableButtons);
 }
 
 function container_request(challenge_id) {
