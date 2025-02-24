@@ -13,7 +13,7 @@
 {% endblock %}
 
 {% block panel %}
-<div class="btn-group" role="group">
+<div class="btn-group mb-2" role="group">
 	<button type="button" class="btn btn-outline-danger" data-toggle="tooltip" title="" id="instances-delete-button"
 		data-test-id="cm-button-destroy" data-original-title="Destroy Instances" onclick="bulkDeleteContainers()">
 		<i class="btn-fa fas fa-trash-alt"></i>
@@ -113,9 +113,6 @@
 	</tbody>
 </table>
 {% include "config/container_status.html" %}
-
-
-
 
 {% endblock %}
 
