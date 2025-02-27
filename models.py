@@ -35,16 +35,14 @@ class ContainerChallengeModel(Challenges):
 class ContainerInfoModel(db.Model):
     __mapper_args__ = {"polymorphic_identity": "container_info"}
     container_id = db.Column(db.String(512), primary_key=True)
-    challenge_id = db.Column(
-        db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE")
-    )
-    team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), index=True)
     port = db.Column(db.Integer)
     timestamp = db.Column(db.Integer)
     expires = db.Column(db.Integer)
     flag = db.Column(db.Text, default="")
-
+    
     team = relationship("Teams", foreign_keys=[team_id])
     user = relationship("Users", foreign_keys=[user_id])
 
@@ -57,14 +55,19 @@ class ContainerSettingsModel(db.Model):
     value = db.Column(db.Text)
 
 
-
 class ContainerFlagModel(db.Model):
     __mapper_args__ = {"polymorphic_identity": "container_flags"}
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    container_id = db.Column(db.String(512), db.ForeignKey("container_info_model.container_id"), nullable=True)
-    flag = db.Column(db.Text, unique=True)  # Store flags uniquely
+
+    challenge_id = db.Column(
+        db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE")
+    )
+    container_id = db.Column(
+        db.String(512),
+        db.ForeignKey("container_info_model.container_id"),
+        nullable=True,
+    )
+    flag = db.Column(db.Text)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))
     used = db.Column(db.Boolean, default=False)
@@ -73,7 +76,6 @@ class ContainerFlagModel(db.Model):
     challenge = relationship(ContainerChallengeModel, foreign_keys=[challenge_id])
     user = relationship("Users", foreign_keys=[user_id])
     team = relationship("Teams", foreign_keys=[team_id])
-
 
 
 class ContainerCheatLog(db.Model):
@@ -85,7 +87,9 @@ class ContainerCheatLog(db.Model):
     reused_flag = db.Column(db.Text)
 
     # Which challenge was it from?
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    challenge_id = db.Column(
+        db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE")
+    )
     # We'll store the relevant relationships if needed
     challenge = db.relationship("ContainerChallengeModel", foreign_keys=[challenge_id])
 

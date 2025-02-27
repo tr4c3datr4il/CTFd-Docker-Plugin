@@ -5,7 +5,7 @@ from flask import jsonify, request
 from CTFd.utils import get_config
 from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettingsModel, ContainerFlagModel, ContainerCheatLog
 from .container_manager import ContainerManager, ContainerException
-from CTFd.models import db, Teams, Users
+from CTFd.models import db, Teams, Users, Solves
 from CTFd.utils.user import get_current_user
 
 
@@ -92,6 +92,10 @@ def create_container(container_manager, chal_id, xid, is_team):
 
     if challenge is None:
         return jsonify({"error": "Challenge not found"}), 400
+
+    if Solves.query.filter_by(challenge_id=chal_id, account_id=xid).first():
+        return jsonify({"error": "Challenge already solved"}), 400
+
 
     max_containers = int(container_manager.settings.get("max_containers", 3))
 
@@ -241,23 +245,41 @@ def get_active_container(challenge_id, x_id):
     return container_info
 
 
-def get_container_flag(submitted_flag):
+def get_container_flag(submitted_flag, user, container_manager, container_info, challenge):
     """
     Fetches the ContainerFlagModel for the given submitted_flag.
-    Raises ValueError if not found.
+    Ensures the flag belongs to the user or team (in team mode).
+    If the flag was already used by another user/team, trigger a ban.
     """
-    container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
+    if is_team_mode():
+        # In team mode, check if the flag belongs to the user's team
+        container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
+        if challenge.flag_mode == "random" and container_flag and container_flag.team_id != user.team_id:
+            # Flag belongs to another team and is reused → cheating detected
+            ban_team_and_original_owner(container_flag, user, container_manager, container_info)
+    else:
+        # In individual mode, check if the flag belongs to the user
+        container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
+        if challenge.flag_mode == "random" and container_flag and container_flag.user_id != user.id:
+            # Flag belongs to another user and is reused → cheating detected
+            ban_team_and_original_owner(container_flag, user, container_manager, container_info)
+
+    # If no flag is found, return incorrect flag error
     if not container_flag:
-        raise ValueError("Incorrect flag.")
+        raise ValueError("Incorrect")
+
     return container_flag
+
 
 
 def ban_team_and_original_owner(container_flag, user, container_manager, container_info):
     """
-    If we're in team mode, ban both the original and the submitting team.
-    If user mode, ban both the original user and this user.
-    Then kill the container, commit, and raise a ValueError for cheating.
+    If flag swapping or cheating is detected, ban both the original owner and the submitter.
+    Deletes the container record and kills the container.
     """
+    if not container_flag:
+        raise ValueError("Cannot ban without a valid container flag.")
+
     cheat_log = ContainerCheatLog(
         reused_flag=container_flag.flag,
         challenge_id=container_flag.challenge_id,
@@ -270,32 +292,63 @@ def ban_team_and_original_owner(container_flag, user, container_manager, contain
     db.session.add(cheat_log)
     db.session.commit()
 
-
-    # Flag was used => cheating => ban original owners:
+    # Ban logic
     if is_team_mode():
-        # original
         original_team = Teams.query.filter_by(id=container_flag.team_id).first()
+        submit_team = Teams.query.filter_by(id=user.team_id).first()
+        
         if original_team:
             original_team.banned = True
             for member in original_team.members:
                 member.banned = True
-
-        # new
-        submit_team = Teams.query.filter_by(id=user.team_id).first()
         if submit_team:
             submit_team.banned = True
             for member in submit_team.members:
                 member.banned = True
     else:
-        # ban original user
         if container_flag.user_id:
             original_user = Users.query.filter_by(id=container_flag.user_id).first()
             if original_user:
                 original_user.banned = True
 
-        # ban this user
         user.banned = True
 
     db.session.commit()
+
+    # **If static mode, delete both flag and container info**
+    if container_flag.challenge.flag_mode == "static":
+        db.session.delete(container_flag)
+        db.session.commit()
+
+    # **If random mode, only delete container info but keep the flag**
+    elif container_flag.challenge.flag_mode == "random":
+        db.session.query(ContainerFlagModel).filter_by(container_id=container_info.container_id).update({"container_id": None})
+        db.session.commit()
+
+    # Remove container info record
+    container = ContainerInfoModel.query.filter_by(container_id=container_info.container_id).first()
+    if container:
+        db.session.delete(container)
+        db.session.commit()
+
+    # Kill the container
     container_manager.kill_container(container_info.container_id)
-    raise ValueError("Cheating detected. Both teams have been banned.")
+
+    # Kill the container
+    container_manager.kill_container(container_info.container_id)
+    raise ValueError("Cheating detected!")
+
+def get_current_user_or_team():
+    user = get_current_user()
+    if user is None:
+        raise ValueError("User not found")
+    if user.team is None and is_team_mode():
+        raise ValueError("User not a member of a team")
+    return user.team.id if is_team_mode() else user.id
+
+def validate_request(json_data, required_fields):
+    if json_data is None:
+        raise ValueError("Invalid request")
+    for field in required_fields:
+        if json_data.get(field) is None:
+            raise ValueError(f"No {field} specified")

@@ -144,25 +144,36 @@ class ContainerChallenge(BaseChallenge):
         if not container_manager or not container_manager.is_container_running(container_info.container_id):
             return False, "Your container is not running; you cannot submit yet."
 
-        # 4) Look up container_flag
+        # Validate the flag belongs to the user/team
         try:
-            container_flag = get_container_flag(submitted_flag)
+            container_flag = get_container_flag(submitted_flag, user, container_manager, container_info, challenge)
         except ValueError as e:
-            return False, str(e)
-
-        # 5) If used & random => cheating => ban
-        if container_flag.used and challenge.flag_mode == "random":
-            try:
-                ban_team_and_original_owner(container_flag, user, container_manager, container_info)
-            except ValueError as e:
-                return False, str(e)
+            return False, str(e)  # Return incorrect flag message if not cheating
 
         # 6) Mark used & kill container => success
         container_flag.used = True
         db.session.commit()
+
+        # **If the challenge is static, delete both flag and container records**
+        if challenge.flag_mode == "static":
+            db.session.delete(container_flag)
+            db.session.commit()
+        
+        # **If the challenge is random, keep the flag but delete only the container info**
+        if challenge.flag_mode == "random":
+            db.session.query(ContainerFlagModel).filter_by(container_id=container_info.container_id).update({"container_id": None})
+            db.session.commit()
+
+        # Remove container info record
+        container = ContainerInfoModel.query.filter_by(container_id=container_info.container_id).first()
+        if container:
+            db.session.delete(container)
+            db.session.commit()
+
+        # Kill the container
         container_manager.kill_container(container_info.container_id)
 
-        return True, "Correct!"
+        return True, "Correct"
 
 container_manager = None  # Global
 

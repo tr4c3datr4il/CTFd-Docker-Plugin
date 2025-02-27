@@ -123,38 +123,38 @@ def route_update_settings():
 @admin_bp.route("/api/kill", methods=["POST"])
 @admins_only
 def route_admin_kill_container():
-    if request.json is None:
-        return {"error": "Invalid request"}, 400
-
-    if request.json.get("container_id", None) is None:
-        return {"error": "No container_id specified"}, 400
-
-    return kill_container(container_manager, request.json.get("container_id"))
+    try:
+        validate_request(request.json, ["container_id"])
+        return kill_container(container_manager, request.json.get("container_id"))
+    except ValueError as err:
+        return {"error": str(err)}, 400
 
 @admin_bp.route("/api/purge", methods=["POST"])
 @admins_only
 def route_purge_containers():
     """Bulk delete multiple containers"""
-    data = request.get_json()
-    container_ids = data.get("container_ids", [])
+    try:
+        validate_request(request.json, ["container_ids"])
+        container_ids = request.json.get("container_ids", [])
+        if not container_ids:
+            return {"error": "No containers selected"}, 400
 
-    if not container_ids:
-        return jsonify({"error": "No containers selected"}), 400
+        deleted_count = 0
+        for container_id in container_ids:
+            container = ContainerInfoModel.query.filter_by(container_id=container_id).first()
+            if container:
+                try:
+                    container_manager.kill_container(container_id)
+                    db.session.delete(container)
+                    deleted_count += 1
+                except ContainerException:
+                    continue
 
-    deleted_count = 0
-    for container_id in container_ids:
-        container = ContainerInfoModel.query.filter_by(container_id=container_id).first()
-        if container:
-            try:
-                container_manager.kill_container(container_id)
-                db.session.delete(container)
-                deleted_count += 1
-            except ContainerException:
-                continue
-
-    db.session.commit()
-    return jsonify({"success": f"Deleted {deleted_count} container(s)"})
-
+        db.session.commit()
+        return {"success": f"Deleted {deleted_count} container(s)"}
+    except ValueError as err:
+        return {"error": str(err)}, 400
+        
 @admin_bp.route("/api/images", methods=["GET"])
 @admins_only
 def route_get_images():
