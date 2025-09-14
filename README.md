@@ -21,6 +21,9 @@
 
 ---
 
+> [!WARNING]
+> The current cheating-detection algorithm is very slow, so it is NOT recommended for competitions with many participants.
+
 ## Getting Started
 
 This section provides instructions for setting up the project locally.
