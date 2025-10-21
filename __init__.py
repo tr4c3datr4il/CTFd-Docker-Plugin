@@ -181,6 +181,14 @@ def load(app: Flask):
     # Ensure database is initialized
     app.db.create_all()
 
+    # Ensure ban_immediately setting exists with default value
+    with app.app_context():
+        ban_setting = ContainerSettingsModel.query.filter_by(key="ban_immediately").first()
+        if not ban_setting:
+            ban_setting = ContainerSettingsModel(key="ban_immediately", value="0")
+            db.session.add(ban_setting)
+            db.session.commit()
+
     # Register the challenge type
     CHALLENGE_CLASSES["container"] = ContainerChallenge
 

@@ -1,8 +1,7 @@
 import atexit
 import time
 import json
-import random
-import string
+import os
 
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -18,9 +17,7 @@ from .models import ContainerInfoModel, ContainerFlagModel, ContainerFlagModel
 def generate_random_flag(challenge):
     """Generate a random flag with the given length and format"""
     flag_length = challenge.random_flag_length
-    random_part = "".join(
-        random.choices(string.ascii_letters + string.digits, k=flag_length)
-    )
+    random_part = "".join(f'{b:02x}' for b in os.urandom(flag_length)) # use hex for readability
     return f"{challenge.flag_prefix}{random_part}{challenge.flag_suffix}"
 
 

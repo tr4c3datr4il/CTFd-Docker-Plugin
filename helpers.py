@@ -246,39 +246,38 @@ def get_active_container(challenge_id, x_id):
 
 
 def get_container_flag(submitted_flag, user, container_manager, container_info, challenge):
-    """
-    Fetches the ContainerFlagModel for the given submitted_flag.
-    Ensures the flag belongs to the user or team (in team mode).
-    If the flag was already used by another user/team, trigger a ban.
-    """
-    if is_team_mode():
-        # In team mode, check if the flag belongs to the user's team
-        container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
-        if challenge.flag_mode == "random" and container_flag and container_flag.team_id != user.team_id:
-            # Flag belongs to another team and is reused → cheating detected
-            ban_team_and_original_owner(container_flag, user, container_manager, container_info)
-    else:
-        # In individual mode, check if the flag belongs to the user
-        container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
-        if challenge.flag_mode == "random" and container_flag and container_flag.user_id != user.id:
-            # Flag belongs to another user and is reused → cheating detected
+    def log_and_ban():
+        log_cheat(container_flag, user, container_manager, container_info)
+        if ban_immediately_setting == "1":
             ban_team_and_original_owner(container_flag, user, container_manager, container_info)
 
-    # If no flag is found, return incorrect flag error
+    container_flag = ContainerFlagModel.query.filter_by(flag=submitted_flag).first()
+    
     if not container_flag:
         raise ValueError("Incorrect")
 
+    # dont ban admin users
+    if user.type == "admin":
+        raise ValueError("Admin user is testing flag!")
+    
+    # check global ban_immediately setting
+    ban_immediately_setting = container_manager.settings.get("ban_immediately", "0")
+    if challenge.flag_mode == "random":
+        if is_team_mode():
+            if container_flag.team_id != user.team_id:
+                log_and_ban()
+        else:
+            if container_flag.user_id != user.id:
+                log_and_ban()
+
     return container_flag
 
-
-
-def ban_team_and_original_owner(container_flag, user, container_manager, container_info):
+def log_cheat(container_flag, user, container_manager, container_info):
     """
-    If flag swapping or cheating is detected, ban both the original owner and the submitter.
-    Deletes the container record and kills the container.
+    Log cheating activity when a reused flag is detected.
     """
     if not container_flag:
-        raise ValueError("Cannot ban without a valid container flag.")
+        raise ValueError("Cannot log cheat without a valid container flag.")
 
     cheat_log = ContainerCheatLog(
         reused_flag=container_flag.flag,
@@ -291,6 +290,12 @@ def ban_team_and_original_owner(container_flag, user, container_manager, contain
     )
     db.session.add(cheat_log)
     db.session.commit()
+
+def ban_team_and_original_owner(container_flag, user, container_manager, container_info):
+    """
+    If flag swapping or cheating is detected, ban both the original owner and the submitter.
+    Deletes the container record and kills the container.
+    """
 
     # Ban logic
     if is_team_mode():

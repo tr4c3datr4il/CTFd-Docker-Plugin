@@ -104,6 +104,15 @@ def route_update_settings():
         else:
             setting.value = value
 
+    # Handle ban_immediately checkbox
+    ban_immediately_value = "1" if request.form.get("ban_immediately") else "0"
+    ban_setting = ContainerSettingsModel.query.filter_by(key="ban_immediately").first()
+    if not ban_setting:
+        ban_setting = ContainerSettingsModel(key="ban_immediately", value=ban_immediately_value)
+        db.session.add(ban_setting)
+    else:
+        ban_setting.value = ban_immediately_value
+
     db.session.commit()
 
     # Refresh container manager settings
