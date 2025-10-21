@@ -246,6 +246,12 @@ def get_active_container(challenge_id, x_id):
 
 
 def get_container_flag(submitted_flag, user, container_manager, container_info, challenge):
+    """
+    Fetches the ContainerFlagModel for the given submitted_flag.
+    Ensures the flag belongs to the user or team (in team mode).
+    If the flag was already used by another user/team, trigger a ban.
+    """
+    
     def log_and_ban():
         log_cheat(container_flag, user, container_manager, container_info)
         if ban_immediately_setting == "1":
