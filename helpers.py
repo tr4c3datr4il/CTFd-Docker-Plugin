@@ -7,7 +7,7 @@ from .models import ContainerChallengeModel, ContainerInfoModel, ContainerSettin
 from .container_manager import ContainerManager, ContainerException
 from CTFd.models import db, Teams, Users, Solves
 from CTFd.utils.user import get_current_user
-
+from . import webhook
 
 def get_settings_path():
     """Retrieve the path to settings.json"""
@@ -285,17 +285,33 @@ def log_cheat(container_flag, user, container_manager, container_info):
     if not container_flag:
         raise ValueError("Cannot log cheat without a valid container flag.")
 
+    reused_flag = container_flag.flag
+    challenge_id = container_flag.challenge_id
+    original_team_id = container_flag.team_id
+    original_user_id = container_flag.user_id
+    second_team_id = user.team_id if is_team_mode() else None
+    second_user_id = user.id if not is_team_mode() else None
+
     cheat_log = ContainerCheatLog(
-        reused_flag=container_flag.flag,
-        challenge_id=container_flag.challenge_id,
-        original_team_id=container_flag.team_id,
-        original_user_id=container_flag.user_id,
-        second_team_id=user.team_id if is_team_mode() else None,
-        second_user_id=user.id if not is_team_mode() else None,
+        reused_flag=reused_flag,
+        challenge_id=challenge_id,
+        original_team_id=original_team_id,
+        original_user_id=original_user_id,
+        second_team_id=second_team_id,
+        second_user_id=second_user_id,
         timestamp=int(time.time())
     )
     db.session.add(cheat_log)
     db.session.commit()
+
+    webhook.send_alert(
+        challenge_id, 
+        original_team_id,
+        original_user_id,
+        second_team_id,
+        second_user_id,
+        is_team_mode()
+    ) if webhook.IS_RUN else None
 
 def ban_team_and_original_owner(container_flag, user, container_manager, container_info):
     """
